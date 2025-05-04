@@ -1,8 +1,8 @@
 targetScope = 'subscription'
 
 var location = deployment().location
-param vnetName1 string = 'vnet-1' 
-param vnetName2 string = 'vnet-2'
+param vnetHubName string = 'vnet-hub' 
+param vnetSpokeName string = 'vnet-spoke'
 param vnetResourceGroupName string
 
 param vnmResourceGroupName string
@@ -44,15 +44,31 @@ module rootPool 'modules/network/ipamPool.bicep' = {
   }
 }
 
+// define a child pool for the hub
+module hubPool 'modules/network/ipamPool.bicep' = {
+  name: 'hubPool'
+  scope: vnmRg
+  params: {
+    ipamPoolAddressPrefixes: [
+      '10.10.0.0/16'
+    ]
+    ipamPoolDescription: 'Hub Pool'
+    location: location
+    ipamPoolName: 'hub-pool'
+    vnmName: vnm.outputs.networkManagerName
+    ipamParentPoolName: rootPool.outputs.ipamPoolName
+  }
+}
+
 // define a child pool for a landingzone
-module lz1Pool 'modules/network/ipamPool.bicep' = {
-  name: 'lz1Pool'
+module lzPool 'modules/network/ipamPool.bicep' = {
+  name: 'lzPool'
   scope: vnmRg
   params: {
     ipamPoolAddressPrefixes: [
       '10.100.0.0/16'
     ]
-    ipamPoolDescription: 'Landing Zone 1 Pool'
+    ipamPoolDescription: 'Landing Zone Pool'
     location: location
     ipamPoolName: 'lz-01-pool'
     vnmName: vnm.outputs.networkManagerName
@@ -60,21 +76,7 @@ module lz1Pool 'modules/network/ipamPool.bicep' = {
   }
 }
 
-// define a child pool for a landingzone
-module lz2Pool 'modules/network/ipamPool.bicep' = {
-  name: 'lz2Pool'
-  scope: vnmRg
-  params: {
-    ipamPoolAddressPrefixes: [
-      '10.101.0.0/16'
-    ]
-    ipamPoolDescription: 'Landing Zone 2 Pool'
-    location: location
-    ipamPoolName: 'lz-02-pool'
-    vnmName: vnm.outputs.networkManagerName
-    ipamParentPoolName: rootPool.outputs.ipamPoolName
-  }
-}
+
 
 module autojoinPolicy 'modules/policy/dynamicNetworkGroupPolicy.bicep' = {
   name: 'autojoin-policy'
@@ -86,26 +88,42 @@ module autojoinPolicy 'modules/policy/dynamicNetworkGroupPolicy.bicep' = {
   }
 }
 
-module vnet1 'modules/network/virtualNetwork.bicep' = {
-  name: 'deploy-vnet1'
+module vnetHub 'modules/network/virtualNetwork.bicep' = {
+  name: 'deploy-vnet-hub'
   scope: networkRg
   params: {
     location: location
-    vnetName: vnetName1
+    vnetName: vnetHubName
     vnmResourceGroupName: vnmRg.name
     vnmName: vnm.outputs.networkManagerName
-    ipamPoolName: lz1Pool.outputs.ipamPoolName
+    ipamPoolName: hubPool.outputs.ipamPoolName
   }
 }
 
-module vnet2 'modules/network/virtualNetwork.bicep' = {
-  name: 'deploy-vnet2'
+module vnetSpoke 'modules/network/virtualNetwork.bicep' = {
+  name: 'deploy-spoke'
   scope: networkRg
   params: {
     location: location
-    vnetName: vnetName2
+    vnetName: vnetSpokeName
     vnmResourceGroupName: vnmRg.name
     vnmName: vnm.outputs.networkManagerName
-    ipamPoolName: lz1Pool.outputs.ipamPoolName
+    ipamPoolName: lzPool.outputs.ipamPoolName
+    tags: {
+      '_autojoin-networkgroup': 'true'
+    }
+  }
+}
+
+// define a connectivity configuration for the hub and spoke topology
+module hubSpokeConfig 'modules/network/connectivityConfiguration.bicep' = {
+  name: 'hub-spoke-config'
+  scope: vnmRg
+  params: {
+    vnmName: vnm.outputs.networkManagerName
+    vnmNetworkGroupName: vnm.outputs.networkGroupName
+    vnetHubName: vnetHub.outputs.vnetName
+    vnetResourceGroupName: networkRg.name
+    useHubGateway: false
   }
 }

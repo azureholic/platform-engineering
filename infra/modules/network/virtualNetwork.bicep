@@ -9,6 +9,8 @@ param vnmName string
 @description('The name of the IPAM pool')
 param ipamPoolName string
 
+param tags object = {}
+
 resource vnmRg 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
   name: vnmResourceGroupName
   scope: subscription()
@@ -27,9 +29,7 @@ resource ipamPool 'Microsoft.Network/networkManagers/ipamPools@2024-05-01' exist
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: vnetName
   location: location
-  tags: {
-    '_autojoin-networkgroup': 'true'
-  }
+  tags: tags
   properties: {
     addressSpace: {
       ipamPoolPrefixAllocations: [
@@ -58,3 +58,5 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     ]
   }
 }
+
+output vnetName string = vnet.name
