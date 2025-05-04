@@ -29,6 +29,53 @@ module vnm 'modules/network/virtualNetworkManager.bicep' = {
   }
 }
 
+// define a root pool
+module rootPool 'modules/network/ipamPool.bicep' = {
+  name: 'ipam-pool-root'
+  scope: vnmRg
+  params: {
+    ipamPoolAddressPrefixes:[
+      '10.0.0.0/8'
+    ]
+    ipamPoolDescription: 'Root IPAM Pool'
+    location: location
+    ipamPoolName: 'root-pool'
+    vnmName: vnm.outputs.networkManagerName
+  }
+}
+
+// define a child pool for a landingzone
+module lz1Pool 'modules/network/ipamPool.bicep' = {
+  name: 'lz1Pool'
+  scope: vnmRg
+  params: {
+    ipamPoolAddressPrefixes: [
+      '10.100.0.0/16'
+    ]
+    ipamPoolDescription: 'Landing Zone 1 Pool'
+    location: location
+    ipamPoolName: 'lz-01-pool'
+    vnmName: vnm.outputs.networkManagerName
+    ipamParentPoolName: rootPool.outputs.ipamPoolName
+  }
+}
+
+// define a child pool for a landingzone
+module lz2Pool 'modules/network/ipamPool.bicep' = {
+  name: 'lz2Pool'
+  scope: vnmRg
+  params: {
+    ipamPoolAddressPrefixes: [
+      '10.101.0.0/16'
+    ]
+    ipamPoolDescription: 'Landing Zone 2 Pool'
+    location: location
+    ipamPoolName: 'lz-02-pool'
+    vnmName: vnm.outputs.networkManagerName
+    ipamParentPoolName: rootPool.outputs.ipamPoolName
+  }
+}
+
 module autojoinPolicy 'modules/policy/dynamicNetworkGroupPolicy.bicep' = {
   name: 'autojoin-policy'
   params: {
@@ -47,7 +94,7 @@ module vnet1 'modules/network/virtualNetwork.bicep' = {
     vnetName: vnetName1
     vnmResourceGroupName: vnmRg.name
     vnmName: vnm.outputs.networkManagerName
-    ipamPoolName: vnm.outputs.ipamPoolName1
+    ipamPoolName: lz1Pool.outputs.ipamPoolName
   }
 }
 
@@ -59,6 +106,6 @@ module vnet2 'modules/network/virtualNetwork.bicep' = {
     vnetName: vnetName2
     vnmResourceGroupName: vnmRg.name
     vnmName: vnm.outputs.networkManagerName
-    ipamPoolName: vnm.outputs.ipamPoolName1
+    ipamPoolName: lz1Pool.outputs.ipamPoolName
   }
 }
